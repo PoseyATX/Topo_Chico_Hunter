@@ -34,6 +34,8 @@ jobs:
         run: playwright install --with-deps chromium
 
       - name: Run scraper
+        env:
+          RESIDENTIAL_PROXY_URL: ${{ secrets.RESIDENTIAL_PROXY_URL }}
         run: python -m scraper.run
 
       - name: Upload debug artifacts on failure

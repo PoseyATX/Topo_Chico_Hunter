@@ -1,6 +1,42 @@
 """Static configuration: the product we're hunting and the Texas search grid."""
 
+import os
+from urllib.parse import urlparse
+
 UPC = "021136050462"  # Topo Chico Mineral Water, 12-digit UPC
+
+# Optional residential proxy (format: http://user:pass@host:port), set as the
+# RESIDENTIAL_PROXY_URL repo secret. Every source in this project is blocked
+# or degraded specifically because GitHub's runners come from recognizable
+# datacenter IP ranges -- Target's Akamai CAPTCHA, Randalls/Tom Thumb's
+# Incapsula flakiness, and Bing serving decoy content are all downstream of
+# that one fact. A residential/mobile proxy routes these requests through an
+# ordinary consumer IP instead, which is the actual fix, not a workaround --
+# it changes which network the traffic looks like it's coming from, the same
+# thing switching to home wifi would do, it just doesn't require owning or
+# running any hardware. See README's "Zero-hardware fix" section. Unset (the
+# default) leaves every scraper behaving exactly as before.
+RESIDENTIAL_PROXY_URL = os.environ.get("RESIDENTIAL_PROXY_URL") or None
+
+
+def playwright_proxy() -> dict | None:
+    """RESIDENTIAL_PROXY_URL translated into Playwright's proxy dict shape."""
+    if not RESIDENTIAL_PROXY_URL:
+        return None
+    parsed = urlparse(RESIDENTIAL_PROXY_URL)
+    proxy = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+    if parsed.username:
+        proxy["username"] = parsed.username
+    if parsed.password:
+        proxy["password"] = parsed.password
+    return proxy
+
+
+def requests_proxies() -> dict | None:
+    """RESIDENTIAL_PROXY_URL translated into `requests`' proxies dict shape."""
+    if not RESIDENTIAL_PROXY_URL:
+        return None
+    return {"http": RESIDENTIAL_PROXY_URL, "https": RESIDENTIAL_PROXY_URL}
 
 # Target's public frontend API key (same one target.com's own site JS uses to
 # call RedSky -- not a secret, but Target rotates it occasionally). Override

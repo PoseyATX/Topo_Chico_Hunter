@@ -33,6 +33,8 @@ session.headers.update(
         "Referer": "https://www.target.com/",
     }
 )
+if config.RESIDENTIAL_PROXY_URL:
+    session.proxies.update(config.requests_proxies())
 
 
 def _get(path: str, params: dict) -> Optional[dict]:

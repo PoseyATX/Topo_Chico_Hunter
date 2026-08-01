@@ -50,6 +50,7 @@ def _lookup_store_address(host: str, store_id: str) -> dict:
             headers=_ADDR_HEADERS,
             params={"storeid": store_id},
             timeout=15,
+            proxies=config.requests_proxies(),
         )
         if resp.status_code != 200:
             return {}
@@ -132,7 +133,7 @@ def check_banner(banner: str, host: str) -> StockResult:
         print(f"[albertsons:{banner}] attempt {attempt}/{config.ALBERTSONS_MAX_ATTEMPTS}")
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
+                browser = p.chromium.launch(headless=True, proxy=config.playwright_proxy())
                 context = browser.new_context(user_agent=config.USER_AGENT)
                 page = context.new_page()
                 try:

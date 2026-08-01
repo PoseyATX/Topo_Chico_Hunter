@@ -57,7 +57,7 @@ def _resolve_bing_redirect(href: str) -> str:
 def _attempt(query: str, max_results: int) -> list[WebMention]:
     mentions: list[WebMention] = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, proxy=config.playwright_proxy())
         context = browser.new_context(user_agent=config.USER_AGENT)
         page = context.new_page()
         try:

@@ -1,15 +1,40 @@
 {
   "upc": "021136050462",
   "product_title": "Topo Chico Mineral Water",
-  "scraped_at": null,
-  "stores": [],
+  "scraped_at": "2026-08-01T02:44:47.731005+00:00",
+  "stores": [
+    {
+      "retailer": "Randalls",
+      "store_id": null,
+      "name": "Randalls",
+      "address": "",
+      "city": "",
+      "state": "TX",
+      "zip": "",
+      "distance_from_search_point": null,
+      "status": "UNKNOWN",
+      "quantity": null
+    },
+    {
+      "retailer": "Tom Thumb",
+      "store_id": null,
+      "name": "Tom Thumb",
+      "address": "",
+      "city": "",
+      "state": "TX",
+      "zip": "",
+      "distance_from_search_point": null,
+      "status": "UNKNOWN",
+      "quantity": null
+    }
+  ],
   "web_mentions": [],
   "summary": {
-    "total_stores_checked": 0,
+    "total_stores_checked": 2,
     "in_stock": 0,
     "limited_stock": 0,
     "out_of_stock": 0,
-    "unknown": 0,
+    "unknown": 2,
     "web_mentions_count": 0
   }
 }

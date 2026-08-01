@@ -6,6 +6,32 @@ and publishes the results as a small dashboard site.
 **Live site:** enable GitHub Pages (see below), then it's at
 `https://poseyatx.github.io/Topo_Chico_Hunter/`
 
+## ⚠️ Known limitation: run this from home, not from the cloud
+
+Target's RedSky API sits behind Akamai bot-detection that fingerprints the
+*origin* of a request, not just its headers. Requests from GitHub-hosted
+Actions runners (and most cloud/sandbox environments) come from well-known
+datacenter IP ranges and get served a CAPTCHA challenge instead of data —
+confirmed by actually running this scraper from a GitHub Actions runner: it
+reached Target's real server (so the endpoints/params here are correct) and
+got `captchaRelativeURL` back, not a 404 or malformed-request error.
+
+There's no legitimate fix for that from a datacenter IP — solving or routing
+around a CAPTCHA is bot-evasion, not something this project will do. The
+practical workaround is running the scraper from an ordinary residential
+connection, where Target's own website traffic normally comes from:
+
+- **Run it locally** (see below) from your home network whenever you want
+  fresh numbers, then commit + push the updated `docs/data.json`.
+- **Or set up a [self-hosted Actions runner](https://docs.github.com/en/actions/hosting-your-own-runners)**
+  on a machine at home (even a Raspberry Pi) — point `.github/workflows/scrape.yml`'s
+  `runs-on:` at it, and the existing daily schedule + dashboard will update
+  themselves automatically from a residential IP.
+
+The scheduled run on GitHub's shared (`ubuntu-latest`) runners is left in place
+for convenience if Target ever loosens this, but expect it to fail with the
+CAPTCHA error above until you switch to a self-hosted runner.
+
 ## How it works
 
 - `scraper/` is a Python scraper that:

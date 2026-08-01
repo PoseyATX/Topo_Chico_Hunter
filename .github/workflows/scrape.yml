@@ -1,8 +1,11 @@
 name: Scrape Topo Chico stock
 
+# No `schedule:` trigger: Target's Akamai bot-detection CAPTCHAs requests from
+# GitHub's shared (datacenter-IP) runners -- see README's "Known limitation"
+# section. Re-add a `schedule:` block once `runs-on:` below points at a
+# self-hosted runner on a residential connection; until then this only runs
+# on demand ("Run workflow") or when the scraper code changes.
 on:
-  schedule:
-    - cron: "0 13 * * *" # 8am/7am US Central daily
   workflow_dispatch: {}
   push:
     branches: [main]
@@ -15,7 +18,7 @@ permissions:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # swap for a self-hosted runner to get real data + automatic daily runs
     steps:
       - uses: actions/checkout@v4
 

@@ -12,7 +12,7 @@ independent sources, and publishes the results as a small dashboard site.
 |---|---|---|
 | **Target** | Statewide Texas (~40 search points, deduplicated) | Target's public RedSky product/fulfillment API. |
 | **Randalls / Tom Thumb** (Albertsons Companies' TX banners) | Each banner's single default/nearest store, best-effort | Real headless Chromium (Playwright) driving the actual site, since the API is Incapsula-protected. |
-| **General web search** | Anywhere, not Texas-specific | A keyless DuckDuckGo HTML search for the UPC, catching whatever grocery/retail/wholesale pages are indexed as carrying it. |
+| **General web search** | Anywhere, not Texas-specific, best-effort | Real headless Chromium (Playwright) driving a Bing search for the UPC -- see below for why. |
 
 `docs/index.html` renders whatever `docs/data.json` currently holds: a
 filterable/sortable store table plus a "Web Mentions" list. No build step —
@@ -52,9 +52,18 @@ diagnostic runs it succeeded roughly half the time. So:
   correcting, `debug/*.json` (uploaded as a build artifact on failure, or
   written locally) has the raw response.
 
-**General web search** is the most reliable of the three (no bot-walls, no
-store-level precision) but only as good as what's indexed -- it surfaces
-retailer/wholesale pages that mention the UPC, not confirmed live stock.
+**General web search** turned out to have the same problem as the other two,
+just less expected. Confirmed via real runs: both `html.duckduckgo.com` and
+`lite.duckduckgo.com` -- the latter historically a favorite of scrapers for
+having no JS at all -- now serve the *same* JS-bootstrap anti-automation
+shell to a plain HTTP client instead of real results. Bing's plain HTML
+search does the same. `scraper/web_search_scraper.py` therefore drives real
+headless Chromium (like the Albertsons scraper) against Bing, decoding its
+`bing.com/ck/a?...&u=a1<base64>` result-link redirects along the way -- and
+even that is flaky run to run (one diagnostic run found 16 real result
+elements in the rendered page; the next, for the identical query, found 0),
+so it retries up to 3 times. Expect this source to legitimately come back
+empty some days. It surfaces whatever's indexed, not confirmed live stock.
 
 **Not included:** H-E-B (Texas's dominant grocery chain for Topo Chico) and
 Walmart have no public inventory API; scraping their live stock pages would
@@ -87,5 +96,6 @@ Writes `docs/data.json`. Open `docs/index.html` in a browser (or serve the
 ## Notes on scope and etiquette
 
 Each source runs once a day at a modest rate: ~40 location lookups against
-Target's API, one page-load (with retries) per Albertsons banner, and a
-single web search query. Not a high-volume or disruptive crawl.
+Target's API, one page-load (with up to 3 retries) per Albertsons banner, and
+one Bing search (also with up to 3 retries). Not a high-volume or disruptive
+crawl.

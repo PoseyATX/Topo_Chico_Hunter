@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Topo Chico Hunter — Texas Stock Finder</title>
+<meta name="description" content="Live Target store-stock finder for Topo Chico Mineral Water (UPC 021136050462) across Texas." />
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #eef3f3;
+    --surface: #ffffff;
+    --ink: #0c1c22;
+    --ink-2: #45575d;
+    --muted: #7c9096;
+    --line: #d7e2e3;
+    --accent: #14486f;
+    --accent-strong: #0a324f;
+    --accent-wash: #e2ecf1;
+    --star: #c23b30;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --critical: #d03b3b;
+    --neutral-status: #7c9096;
+    --shadow: 0 1px 2px rgba(12, 28, 34, 0.06), 0 8px 24px rgba(12, 28, 34, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #0b1416;
+      --surface: #121d20;
+      --ink: #f2f6f6;
+      --ink-2: #c3d1d3;
+      --muted: #85999e;
+      --line: #24363a;
+      --accent: #5aa8de;
+      --accent-strong: #86c2ea;
+      --accent-wash: #182a30;
+      --star: #e2685c;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b1416;
+    --surface: #121d20;
+    --ink: #f2f6f6;
+    --ink-2: #c3d1d3;
+    --muted: #85999e;
+    --line: #24363a;
+    --accent: #5aa8de;
+    --accent-strong: #86c2ea;
+    --accent-wash: #182a30;
+    --star: #e2685c;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #eef3f3;
+    --surface: #ffffff;
+    --ink: #0c1c22;
+    --ink-2: #45575d;
+    --muted: #7c9096;
+    --line: #d7e2e3;
+    --accent: #14486f;
+    --accent-strong: #0a324f;
+    --accent-wash: #e2ecf1;
+    --star: #c23b30;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 20px 64px;
+  }
+
+  header.masthead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+  .title-block { display: flex; align-items: center; gap: 14px; }
+  .bottle-mark {
+    width: 40px; height: 40px; flex: none;
+    border-radius: 10px;
+    background: linear-gradient(160deg, var(--accent), var(--accent-strong));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow);
+  }
+  .bottle-mark svg { width: 22px; height: 22px; }
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .eyebrow {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--star);
+    margin: 0 0 2px;
+  }
+  .meta-block {
+    text-align: right;
+    font-size: 0.82rem;
+    color: var(--ink-2);
+  }
+  .meta-block code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--accent-wash);
+    color: var(--accent-strong);
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.8rem;
+  }
+  .meta-block .updated { color: var(--muted); margin-top: 4px; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-tile {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .stat-tile .n {
+    font-size: 1.9rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-tile .l {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stat-tile.good .n { color: var(--good); }
+  .stat-tile.warning .n { color: #b57900; }
+  .stat-tile.critical .n { color: var(--critical); }
+  @media (prefers-color-scheme: dark) { .stat-tile.warning .n { color: var(--warning); } }
+  :root[data-theme="dark"] .stat-tile.warning .n { color: var(--warning); }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 14px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 10px 0;
+    z-index: 5;
+  }
+  .controls input[type="search"] {
+    flex: 1 1 220px;
+    min-width: 160px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.9rem;
+  }
+  .controls select {
+    padding: 9px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.9rem;
+  }
+  .controls input:focus-visible, .controls select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .result-count { font-size: 0.8rem; color: var(--muted); margin-left: auto; }
+
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 640px; }
+  thead th {
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+  thead th button {
+    all: unset;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+  thead th button:hover { color: var(--ink); }
+  tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-wash); }
+  .store-name { font-weight: 600; color: var(--ink); }
+  .store-addr { color: var(--muted); font-size: 0.82rem; }
+  td.num { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .chip::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .chip.in-stock { background: rgba(12, 163, 12, 0.12); color: var(--good); }
+  .chip.limited { background: rgba(250, 178, 25, 0.16); color: #8a6100; }
+  @media (prefers-color-scheme: dark) { .chip.limited { color: var(--warning); } }
+  :root[data-theme="dark"] .chip.limited { color: var(--warning); }
+  .chip.out-of-stock { background: rgba(208, 59, 59, 0.12); color: var(--critical); }
+  .chip.unknown { background: rgba(124, 144, 150, 0.16); color: var(--neutral-status); }
+
+  .empty-state, .no-results {
+    text-align: center;
+    padding: 64px 24px;
+    color: var(--ink-2);
+  }
+  .empty-state h2, .no-results h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .empty-state code {
+    display: block;
+    margin-top: 14px;
+    background: var(--accent-wash);
+    color: var(--accent-strong);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.82rem;
+    max-width: 420px;
+    margin-inline: auto;
+  }
+
+  footer {
+    margin-top: 28px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div class="title-block">
+      <div class="bottle-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 2h6v3.2c0 .7.3 1.4.8 1.9l1.4 1.4c.5.5.8 1.2.8 1.9V20a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10.4c0-.7.3-1.4.8-1.9l1.4-1.4c.5-.5.8-1.2.8-1.9V2Z" stroke="white" stroke-width="1.6"/>
+          <path d="M7 13h10" stroke="white" stroke-width="1.6"/>
+        </svg>
+      </div>
+      <div>
+        <p class="eyebrow">Texas stock finder</p>
+        <h1>Topo Chico Hunter</h1>
+      </div>
+    </div>
+    <div class="meta-block">
+      <div>UPC <code id="upc-code">—</code></div>
+      <div class="updated" id="updated-line">Loading…</div>
+    </div>
+  </header>
+
+  <div id="app"></div>
+
+  <footer>
+    Target stores only — checked via Target's public product-availability API. H-E-B and Walmart aren't
+    included: neither publishes a public per-store inventory API to query responsibly.
+    <br />
+    <a href="https://github.com/PoseyATX/Topo_Chico_Hunter" target="_blank" rel="noopener">Source on GitHub</a>
+    · Refreshed daily by GitHub Actions
+  </footer>
+</div>
+
+<script>
+(function () {
+  const STATUS_META = {
+    IN_STOCK: { label: "In stock", chip: "in-stock" },
+    LIMITED_STOCK: { label: "Limited stock", chip: "limited" },
+    OUT_OF_STOCK: { label: "Out of stock", chip: "out-of-stock" },
+    NOT_SOLD_IN_STORE: { label: "Not sold here", chip: "out-of-stock" },
+    UNKNOWN: { label: "Unknown", chip: "unknown" },
+  };
+
+  const app = document.getElementById("app");
+  const upcCode = document.getElementById("upc-code");
+  const updatedLine = document.getElementById("updated-line");
+
+  function timeAgo(iso) {
+    if (!iso) return "never";
+    const d = new Date(iso);
+    const mins = Math.round((Date.now() - d.getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 48) return `${hrs} hr ago`;
+    return `${Math.round(hrs / 24)} days ago`;
+  }
+
+  function renderEmpty() {
+    app.innerHTML = `
+      <div class="empty-state">
+        <h2>No scrape has run yet</h2>
+        <p>The GitHub Action that checks Target stores across Texas hasn't produced data.json yet.</p>
+        <code>python -m scraper.run</code>
+      </div>`;
+  }
+
+  function renderApp(data) {
+    upcCode.textContent = data.upc;
+    updatedLine.textContent = data.scraped_at
+      ? `Updated ${timeAgo(data.scraped_at)}`
+      : "Never scraped";
+
+    const s = data.summary;
+    const tiles = [
+      { n: s.total_stores_checked, l: "Stores checked", cls: "" },
+      { n: s.in_stock, l: "In stock", cls: "good" },
+      { n: s.limited_stock, l: "Limited stock", cls: "warning" },
+      { n: s.out_of_stock + (s.unknown || 0), l: "Out of stock / unknown", cls: "critical" },
+    ];
+
+    const stores = data.stores || [];
+    if (stores.length === 0) {
+      app.innerHTML = `
+        <div class="stat-grid">
+          ${tiles.map(t => `<div class="stat-tile ${t.cls}"><div class="n">${t.n}</div><div class="l">${t.l}</div></div>`).join("")}
+        </div>
+        <div class="no-results"><h2>No store data yet</h2><p>Check back after the next scheduled scrape.</p></div>`;
+      return;
+    }
+
+    app.innerHTML = `
+      <div class="stat-grid">
+        ${tiles.map(t => `<div class="stat-tile ${t.cls}"><div class="n">${t.n}</div><div class="l">${t.l}</div></div>`).join("")}
+      </div>
+      <div class="controls">
+        <input type="search" id="q" placeholder="Search city or store…" aria-label="Search city or store" />
+        <select id="status-filter" aria-label="Filter by status">
+          <option value="">All statuses</option>
+          <option value="IN_STOCK">In stock</option>
+          <option value="LIMITED_STOCK">Limited stock</option>
+          <option value="OUT_OF_STOCK">Out of stock</option>
+          <option value="UNKNOWN">Unknown</option>
+        </select>
+        <select id="sort-by" aria-label="Sort by">
+          <option value="city">Sort: City</option>
+          <option value="status">Sort: Status (in-stock first)</option>
+          <option value="distance">Sort: Distance</option>
+        </select>
+        <span class="result-count" id="result-count"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Store</th>
+              <th>City</th>
+              <th>ZIP</th>
+              <th class="num">Distance</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>`;
+
+    const q = document.getElementById("q");
+    const statusFilter = document.getElementById("status-filter");
+    const sortBy = document.getElementById("sort-by");
+    const rowsEl = document.getElementById("rows");
+    const resultCount = document.getElementById("result-count");
+
+    const statusRank = { IN_STOCK: 0, LIMITED_STOCK: 1, OUT_OF_STOCK: 2, NOT_SOLD_IN_STORE: 2, UNKNOWN: 3 };
+
+    function renderRows() {
+      const term = q.value.trim().toLowerCase();
+      const statusVal = statusFilter.value;
+      let filtered = stores.filter(r => {
+        if (statusVal && r.status !== statusVal) return false;
+        if (!term) return true;
+        return (
+          (r.city || "").toLowerCase().includes(term) ||
+          (r.name || "").toLowerCase().includes(term) ||
+          (r.address || "").toLowerCase().includes(term)
+        );
+      });
+
+      const sortKey = sortBy.value;
+      filtered = filtered.slice().sort((a, b) => {
+        if (sortKey === "status") return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+        if (sortKey === "distance") return (a.distance_from_search_point ?? 999) - (b.distance_from_search_point ?? 999);
+        return (a.city || "").localeCompare(b.city || "") || (a.name || "").localeCompare(b.name || "");
+      });
+
+      resultCount.textContent = `${filtered.length} of ${stores.length} stores`;
+
+      if (filtered.length === 0) {
+        rowsEl.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;">No stores match your filters.</td></tr>`;
+        return;
+      }
+
+      rowsEl.innerHTML = filtered.map(r => {
+        const meta = STATUS_META[r.status] || STATUS_META.UNKNOWN;
+        const dist = r.distance_from_search_point != null ? `${Number(r.distance_from_search_point).toFixed(1)} mi` : "—";
+        return `
+          <tr>
+            <td><span class="chip ${meta.chip}">${meta.label}</span></td>
+            <td><div class="store-name">${escapeHtml(r.name || "Target")}</div><div class="store-addr">${escapeHtml(r.address || "")}</div></td>
+            <td>${escapeHtml(r.city || "")}</td>
+            <td class="num">${escapeHtml(r.zip || "")}</td>
+            <td class="num">${dist}</td>
+          </tr>`;
+      }).join("");
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    q.addEventListener("input", renderRows);
+    statusFilter.addEventListener("change", renderRows);
+    sortBy.addEventListener("change", renderRows);
+    renderRows();
+  }
+
+  fetch("./data.json", { cache: "no-store" })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.scraped_at) {
+        upcCode.textContent = data.upc || "—";
+        updatedLine.textContent = "Never scraped";
+        renderEmpty();
+      } else {
+        renderApp(data);
+      }
+    })
+    .catch(() => {
+      updatedLine.textContent = "Error loading data";
+      renderEmpty();
+    });
+})();
+</script>
+</body>
+</html>

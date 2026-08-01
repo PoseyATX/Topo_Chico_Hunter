@@ -1,7 +1,7 @@
 {
   "upc": "021136050462",
   "product_title": "Topo Chico Mineral Water",
-  "scraped_at": "2026-08-01T03:20:52.185189+00:00",
+  "scraped_at": "2026-08-01T03:25:55.329008+00:00",
   "stores": [
     {
       "retailer": "Randalls",
@@ -28,64 +28,13 @@
       "quantity": null
     }
   ],
-  "web_mentions": [
-    {
-      "title": "A Year-by-Year Guide to the Different Generations",
-      "url": "https://www.parents.com/parenting/better-parenting/style/generation-names-and-years-a-cheat-sheet-for-parents/",
-      "snippet": "Jun 22, 2026\u00a0\u00b7 Baby Boom Generation (Born 1946\u20131964) Gen Z may think of Baby Boomers as their out-of-touch grandparents (as in \u2026"
-    },
-    {
-      "title": "Baby boomers - Wikipedia",
-      "url": "https://en.wikipedia.org/wiki/Baby_boomers",
-      "snippet": "In the United States, what set the Boomers apart from their parents was not their marriage rates, or that they married in their early \u2026"
-    },
-    {
-      "title": "Millennials And Gen X Are Explaining Why They Don't Call Their",
-      "url": "https://www.yahoo.com/lifestyle/articles/people-boomer-parents-sharing-thoughts-033105672.html",
-      "snippet": "Aug 24, 2025\u00a0\u00b7 Adam's challenged to parent the same way his boomer parents did 30 years ago. With no technology and mainly \u2026"
-    },
-    {
-      "title": "How to Communicate With Different Generations: The Complete Guide",
-      "url": "https://www.scienceofpeople.com/communication-generations/",
-      "snippet": "Aug 28, 2015\u00a0\u00b7 Learn science-backed strategies to communicate with Boomers, Gen X, Millennials, Gen Z, and Gen Alpha using \u2026"
-    },
-    {
-      "title": "Were your parents baby boomers? : r/generationology - Reddit",
-      "url": "https://www.reddit.com/r/generationology/comments/1914h85/were_your_parents_baby_boomers/",
-      "snippet": "My dad was born in 1950 and my mom was born in 1951. Although neither has gotten remarried my parents divorced about 5 years \u2026"
-    },
-    {
-      "title": "Why do you all say your parents are Boomers instead of Gen X?",
-      "url": "https://www.reddit.com/r/millenials/comments/1c0w4gg/why_do_you_all_say_your_parents_are_boomers/",
-      "snippet": "If a Boomer (born 1945-1964) had kids when they were between the ages of 20-40, their kids were born between 1965-2004, making \u2026"
-    },
-    {
-      "title": "What Generation Am I? Birth Years, Age Ranges and Key Differences",
-      "url": "https://www.bottomlineinc.com/life/family/what-generation-am-i-birth-years-age-ranges-and-key-differences/",
-      "snippet": "May 27, 2026\u00a0\u00b7 The era in which you were born influences everything from your behaviors and attitudes to your values and \u2026"
-    },
-    {
-      "title": "Communicating with Different Generations: Baby Boomers to Gen A",
-      "url": "https://easystylewithsami.com/communicating-with-different-generations-baby-boomers-to-gen-z/",
-      "snippet": "Jul 2, 2025\u00a0\u00b7 Are you communicating with different generations? Discover the best communication styles for Baby Boomers, Gen X, \u2026"
-    },
-    {
-      "title": "Generations FAQs: Info About Gen Z, Millennials, Gen X, & More!",
-      "url": "https://genhq.com/the-generations-hub/generational-faqs/",
-      "snippet": "For example, many Baby Boomers have the parenting philosophy, \u201cWe want it to be easier for our kids than it was for us.\u201d This \u2026"
-    },
-    {
-      "title": "How Generation Me Works - HowStuffWorks",
-      "url": "https://people.howstuffworks.com/culture-traditions/generation-gaps/generation-me.htm",
-      "snippet": "The children born in the economic prosperity of that war's aftermath are called the Baby Boomers. Their children comprise \u2026"
-    }
-  ],
+  "web_mentions": [],
   "summary": {
     "total_stores_checked": 2,
     "in_stock": 0,
     "limited_stock": 0,
     "out_of_stock": 0,
     "unknown": 2,
-    "web_mentions_count": 10
+    "web_mentions_count": 0
   }
 }

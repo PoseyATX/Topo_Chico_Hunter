@@ -3,18 +3,17 @@ General web search for the UPC, independent of any specific retailer's store
 locator -- catches whatever grocery/retail/wholesale pages are indexed as
 carrying this product anywhere, not just a fixed list of Texas chains.
 
-Uses DuckDuckGo's keyless HTML endpoint (html.duckduckgo.com/html/), which
-returns plain server-rendered result markup with no JS and no API key
-required -- a common, low-friction way to do this without needing a paid
-search API. Run at a modest rate (once a day), this is a single request, not
-a crawl.
+Uses DuckDuckGo's "Lite" endpoint (lite.duckduckgo.com/lite/), a plain
+table-based HTML results page with no JavaScript -- built for exactly this
+kind of low-bandwidth/scriptable client, unlike html.duckduckgo.com/html/,
+which (confirmed via a real run) serves a JS-bootstrap shell instead of
+server-rendered results to this kind of request. Run at a modest rate (once
+a day), this is a single request, not a crawl.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
@@ -22,7 +21,7 @@ from bs4 import BeautifulSoup
 
 from . import config
 
-SEARCH_URL = "https://html.duckduckgo.com/html/"
+SEARCH_URL = "https://lite.duckduckgo.com/lite/"
 
 
 @dataclass
@@ -33,8 +32,8 @@ class WebMention:
 
 
 def _resolve_ddg_redirect(href: str) -> str:
-    """DDG's HTML endpoint wraps result links in a /l/?uddg=<encoded-url> redirect."""
-    if href.startswith("//duckduckgo.com/l/") or "/l/?" in href:
+    """DDG sometimes wraps result links in a /l/?uddg=<encoded-url> redirect."""
+    if "/l/?" in href:
         parsed = urlparse(href if href.startswith("http") else f"https:{href}")
         qs = parse_qs(parsed.query)
         if "uddg" in qs:
@@ -44,13 +43,12 @@ def _resolve_ddg_redirect(href: str) -> str:
 
 def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_SEARCH_MAX_RESULTS) -> list[WebMention]:
     try:
-        resp = requests.post(
+        resp = requests.get(
             SEARCH_URL,
-            data={"q": query},
+            params={"q": query},
             headers={
                 "User-Agent": config.USER_AGENT,
                 "Accept": "text/html,application/xhtml+xml",
-                "Content-Type": "application/x-www-form-urlencoded",
             },
             timeout=20,
         )
@@ -66,20 +64,39 @@ def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_S
 
     soup = BeautifulSoup(resp.text, "html.parser")
     mentions: list[WebMention] = []
-    for result in soup.select(".result"):
-        link = result.select_one(".result__a")
-        snippet_el = result.select_one(".result__snippet")
-        if not link or not link.get("href"):
+
+    # Lite's markup: each result is a <tr> with a link (class result-link,
+    # older markup) followed by a snippet <tr> (class result-snippet).
+    # Fall back to any <a> whose href looks like an external result link, in
+    # case the exact class names have drifted.
+    links = soup.select("a.result-link") or [
+        a for a in soup.find_all("a", href=True)
+        if a["href"].startswith("http") or "/l/?" in a["href"]
+        if "duckduckgo.com" not in _resolve_ddg_redirect(a["href"])
+    ]
+
+    for link in links:
+        href = link.get("href", "")
+        if not href:
             continue
-        url = _resolve_ddg_redirect(link["href"])
+        url = _resolve_ddg_redirect(href)
         title = link.get_text(strip=True)
-        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+        if not title or not url.startswith("http"):
+            continue
+        snippet = ""
+        snippet_row = link.find_parent("tr")
+        if snippet_row:
+            next_row = snippet_row.find_next_sibling("tr")
+            if next_row:
+                snippet_cell = next_row.select_one(".result-snippet") or next_row
+                snippet = snippet_cell.get_text(strip=True)
         mentions.append(WebMention(title=title, url=url, snippet=snippet))
         if len(mentions) >= max_results:
             break
 
     if not mentions:
         print("[web_search] no results parsed -- DDG's result markup may have changed")
-        print(f"[web_search] body[:1000]: {resp.text[:1000]!r}")
+        print(f"[web_search] body length: {len(resp.text)}")
+        print(f"[web_search] body[:1500]: {resp.text[:1500]!r}")
 
     return mentions

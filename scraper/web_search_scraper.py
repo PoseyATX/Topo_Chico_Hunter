@@ -105,6 +105,23 @@ BING_JUNK_DOMAINS = (
 )
 
 
+def _resolve_bing_redirect(href: str) -> str:
+    """Bing wraps organic result links in bing.com/ck/a?...&u=a1<base64url>."""
+    if "bing.com/ck/a" not in href:
+        return href
+    qs = parse_qs(urlparse(href).query)
+    u = qs.get("u", [""])[0]
+    if not u.startswith("a1"):
+        return href
+    b64 = u[2:]
+    b64 += "=" * (-len(b64) % 4)
+    try:
+        import base64
+        return base64.urlsafe_b64decode(b64).decode("utf-8", errors="replace")
+    except Exception:
+        return href
+
+
 def _search_bing(query: str, max_results: int) -> list[WebMention]:
     body = _get("https://www.bing.com/search", {"q": query, "count": max_results})
     if not body:
@@ -123,7 +140,7 @@ def _search_bing(query: str, max_results: int) -> list[WebMention]:
         link = li.find("a", href=True)
         if not link:
             continue
-        href = link["href"]
+        href = _resolve_bing_redirect(link["href"])
         if not href.startswith("http") or any(d in href for d in BING_JUNK_DOMAINS):
             continue
         title = link.get_text(strip=True)
@@ -144,8 +161,9 @@ def _search_bing(query: str, max_results: int) -> list[WebMention]:
 
     if not mentions:
         print("[web_search] Bing: no results parsed")
-        print(f"[web_search] Bing body length: {len(body)}")
-        print(f"[web_search] Bing body[:800]: {body[:800]!r}")
+        print(f"[web_search] Bing body length: {len(body)}, #b_results present: {soup.select_one('#b_results') is not None}")
+        all_hrefs = [a["href"] for a in container.find_all("a", href=True)][:20]
+        print(f"[web_search] Bing first 20 hrefs in container: {all_hrefs}")
 
     return mentions
 

@@ -1,13 +1,12 @@
 name: Scrape Topo Chico stock
 
-# No `schedule:` trigger yet: the Randalls/Tom Thumb endpoints in
-# scraper/albertsons_scraper.py are first-pass guesses, not yet confirmed
-# against live traffic -- see README's "Status" section. Add a `schedule:`
-# block back once a manual "Run workflow" succeeds reliably (and point
-# `runs-on:` below at a self-hosted runner if these banners turn out to CAPTCHA
-# datacenter IPs the way Target does). Until then this only runs on demand or
-# when the scraper code changes.
+# Runs daily plus on demand. The scraper degrades gracefully per source
+# (Target / Randalls / Tom Thumb / web search each wrapped so one failing
+# doesn't fail the run) -- see README's "Known limitations" for what each
+# source can be expected to actually return on a given day.
 on:
+  schedule:
+    - cron: "0 13 * * *" # ~8am US Central daily
   workflow_dispatch: {}
   push:
     branches: [main]
@@ -20,7 +19,7 @@ permissions:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest # swap for a self-hosted runner to get real data + automatic daily runs
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -30,6 +29,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Install Chromium (for Randalls/Tom Thumb, which need a real browser)
+        run: playwright install --with-deps chromium
 
       - name: Run scraper
         run: python -m scraper.run

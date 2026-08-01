@@ -1,177 +1,183 @@
 """
 Store-inventory lookup for Albertsons Companies' Texas banners (Randalls,
-Tom Thumb), both of which run on the same underlying digital storefront
-platform as the rest of the Albertsons family (Safeway, Vons, Jewel-Osco, ...).
+Tom Thumb), discovered by inspecting real browser traffic against
+www.randalls.com / www.tomthumb.com (see scraper/diagnose_playwright.py).
 
-Unlike Target's RedSky API, there's no widely-documented public API for this
-platform to build against -- these are first-pass, best-guess endpoints based
-on how comparable grocery storefronts structure store-locator and product
-search/availability calls. `debug_dump()` writes the raw response (status,
-headers, body) for every non-2xx or unparseable call so real traffic can be
-used to correct the endpoint shapes here.
+These sites sit behind Incapsula bot-detection that blocks plain HTTP clients
+outright (requests to the product-search endpoint just hang) and even
+intermittently blocks a real headless-browser session for no code-visible
+reason. So this module:
+  - Uses Playwright (real headless Chromium), not `requests`, since that's
+    the only thing that gets past Incapsula at all.
+  - Retries a few times per banner, since even browser sessions sometimes
+    time out.
+  - Checks only each banner's single default/nearest store rather than
+    sweeping all of Texas -- multiplying flaky browser page-loads across
+    ~40 search points was not a reasonable trade for statewide coverage
+    that may not be reliably retrievable at all.
+
+The product-search response's JSON shape has never been directly observed
+(it didn't fire during response-capture diagnostics), so parsing here is
+defensive: it searches the payload for the UPC and a plausible availability
+field rather than assuming exact key names, and dumps the full raw response
+to debug/ whenever that search comes up empty.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import time
+import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import requests
+from playwright.sync_api import sync_playwright
 
 from . import config
 
-session = requests.Session()
-session.headers.update(
-    {
-        "User-Agent": config.USER_AGENT,
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-)
+_ADDR_HEADERS = {
+    "User-Agent": config.USER_AGENT,
+    "Accept": "application/json",
+    "ocp-apim-subscription-key": config.ALBERTSONS_SUBSCRIPTION_KEY,
+}
+
+
+def _lookup_store_address(host: str, store_id: str) -> dict:
+    try:
+        resp = requests.get(
+            f"https://{host}/abs/pub/xapi/storeresolver/storeaddress",
+            headers=_ADDR_HEADERS,
+            params={"storeid": store_id},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return {}
+        addr = resp.json().get("storeAddressModel", {}).get("address", {})
+        return {
+            "name": resp.json().get("storeAddressModel", {}).get("storeRewards", {}).get("storeName", ""),
+            "address": addr.get("line1", ""),
+            "city": addr.get("city", ""),
+            "state": addr.get("state", "TX"),
+            "zip": addr.get("zipcode", ""),
+        }
+    except (requests.RequestException, ValueError):
+        return {}
 
 
 @dataclass
-class Product:
-    product_id: str
-    title: str
-
-
-@dataclass
-class Store:
-    store_id: str
-    banner: str
+class StockResult:
+    retailer: str
+    store_id: Optional[str]
     name: str
     address: str
     city: str
     state: str
     zip: str
-    distance_miles: Optional[float] = None
-
-
-@dataclass
-class StockResult:
-    store: Store
-    status: str  # IN_STOCK | LIMITED_STOCK | OUT_OF_STOCK | NOT_SOLD_IN_STORE | UNKNOWN
+    status: str  # IN_STOCK | LIMITED_STOCK | OUT_OF_STOCK | UNKNOWN
     quantity: Optional[int] = None
 
 
-def _request(method: str, host: str, path: str, **kwargs) -> Optional[requests.Response]:
-    url = f"https://{host}{path}"
-    try:
-        resp = session.request(method, url, timeout=20, **kwargs)
-    except requests.RequestException as exc:
-        print(f"[albertsons:{host}] {method} {path} -> request error: {exc}")
-        return None
-    if resp.status_code >= 400:
-        print(
-            f"[albertsons:{host}] {method} {path} -> HTTP {resp.status_code} "
-            f"({resp.headers.get('content-type', '?')}): {resp.text[:300]!r}"
-        )
-        debug_dump(f"{host.replace('.', '_')}_{path.strip('/').replace('/', '_')}", resp)
-        return None
-    return resp
+AVAILABILITY_KEY_PATTERN = re.compile(r"(availab|stock|inventory|onhand|quantity)", re.IGNORECASE)
+UPC_KEY_PATTERN = re.compile(r"(upc|gtin)", re.IGNORECASE)
 
 
-def find_product_by_upc(host: str, upc: str) -> Optional[Product]:
-    """Resolve a UPC to this banner's internal product ID via product search."""
-    resp = _request(
-        "GET",
-        host,
-        "/abs/pub/xapi/search/v3/products",
-        params={"q": upc, "rows": 1},
-    )
-    if not resp:
-        return None
-    try:
-        data = resp.json()
-        products = data.get("products") or data.get("data", {}).get("products") or []
-        if not products:
-            print(f"[albertsons:{host}] no product found for UPC {upc}")
-            return None
-        item = products[0]
-        product_id = str(item.get("productId") or item.get("id") or item.get("upc"))
-        title = item.get("name") or item.get("productName") or upc
-        return Product(product_id=product_id, title=title)
-    except (ValueError, KeyError, TypeError) as exc:
-        print(f"[albertsons:{host}] could not parse product search response: {exc}")
-        debug_dump(f"{host.replace('.', '_')}_product_search_parse", resp)
-        return None
+def _find_product_entry(node: Any, upc: str) -> Optional[dict]:
+    """Walk the response JSON looking for a dict whose upc/gtin-ish field matches."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if UPC_KEY_PATTERN.search(key) and isinstance(value, (str, int)) and str(value).lstrip("0") == upc.lstrip("0"):
+                return node
+        for value in node.values():
+            found = _find_product_entry(value, upc)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_product_entry(item, upc)
+            if found is not None:
+                return found
+    return None
 
 
-def nearby_stores(host: str, banner: str, zip_code: str, radius_miles: int = config.SEARCH_RADIUS_MILES) -> list[Store]:
-    resp = _request(
-        "GET",
-        host,
-        "/abs/pub/xapi/storelocator/v1/stores",
-        params={"zipcode": zip_code, "radius": radius_miles, "limit": 20},
-    )
-    if not resp:
-        return []
-    stores: list[Store] = []
-    try:
-        data = resp.json()
-        locations = data.get("stores") or data.get("data", {}).get("stores") or []
-        for loc in locations:
-            addr = loc.get("address", {})
-            stores.append(
-                Store(
-                    store_id=str(loc.get("storeId") or loc.get("id")),
-                    banner=banner,
-                    name=loc.get("name", banner),
-                    address=addr.get("addressLine1", addr.get("street", "")),
-                    city=addr.get("city", ""),
-                    state=addr.get("state", ""),
-                    zip=addr.get("zipcode", addr.get("zip", "")),
-                    distance_miles=loc.get("distance"),
-                )
-            )
-    except (ValueError, KeyError, TypeError) as exc:
-        print(f"[albertsons:{host}] could not parse nearby_stores response for {zip_code}: {exc}")
-        debug_dump(f"{host.replace('.', '_')}_nearby_stores_{zip_code}_parse", resp)
-    return stores
+def _guess_status(product_entry: dict) -> tuple[str, Optional[int]]:
+    for key, value in product_entry.items():
+        if AVAILABILITY_KEY_PATTERN.search(key):
+            text = str(value).upper()
+            if isinstance(value, (int, float)) or (isinstance(value, str) and value.isdigit()):
+                qty = int(value)
+                return ("IN_STOCK" if qty > 0 else "OUT_OF_STOCK"), qty
+            if "OUT" in text or text in ("FALSE", "NO", "UNAVAILABLE"):
+                return "OUT_OF_STOCK", None
+            if "LIMIT" in text or "LOW" in text:
+                return "LIMITED_STOCK", None
+            if "IN_STOCK" in text or "AVAILABLE" in text or text in ("TRUE", "YES"):
+                return "IN_STOCK", None
+    return "UNKNOWN", None
 
 
-def fulfillment_for_stores(host: str, product_id: str, stores: list[Store]) -> list[StockResult]:
-    """Per-store pickup availability. Checked one store at a time -- this
-    platform's product API takes store context per-request rather than a
-    batched multi-store lookup like Target's."""
-    results: list[StockResult] = []
-    for store in stores:
-        resp = _request(
-            "GET",
-            host,
-            f"/abs/pub/xapi/product/v1/{product_id}/availability",
-            params={"storeId": store.store_id},
-        )
-        if not resp:
-            results.append(StockResult(store=store, status="UNKNOWN"))
-            time.sleep(config.REQUEST_DELAY_SECONDS)
-            continue
-        try:
-            data = resp.json()
-            availability = data.get("availabilityStatus") or data.get("status", "UNKNOWN")
-            quantity = data.get("quantity") or data.get("availableQuantity")
-            results.append(StockResult(store=store, status=str(availability).upper(), quantity=quantity))
-        except (ValueError, KeyError, TypeError) as exc:
-            print(f"[albertsons:{host}] could not parse availability for store {store.store_id}: {exc}")
-            debug_dump(f"{host.replace('.', '_')}_availability_{store.store_id}_parse", resp)
-            results.append(StockResult(store=store, status="UNKNOWN"))
-        time.sleep(config.REQUEST_DELAY_SECONDS)
-    return results
-
-
-def debug_dump(label: str, resp: requests.Response) -> None:
+def debug_dump(label: str, body: str) -> None:
     os.makedirs("debug", exist_ok=True)
     path = os.path.join("debug", f"{label}.json")
-    payload = {
-        "url": resp.url,
-        "status_code": resp.status_code,
-        "headers": dict(resp.headers),
-        "body": resp.text[:5000],
-    }
     with open(path, "w") as f:
-        json.dump(payload, f, indent=2)
+        f.write(body)
     print(f"[albertsons] dumped raw response to {path}")
+
+
+def check_banner(banner: str, host: str) -> StockResult:
+    url = f"https://{host}/shop/search-results.html?q={config.UPC}"
+    last_error = None
+
+    for attempt in range(1, config.ALBERTSONS_MAX_ATTEMPTS + 1):
+        print(f"[albertsons:{banner}] attempt {attempt}/{config.ALBERTSONS_MAX_ATTEMPTS}")
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(user_agent=config.USER_AGENT)
+                page = context.new_page()
+                try:
+                    with page.expect_response(lambda r: "pgmsearch" in r.url, timeout=25000) as resp_info:
+                        page.goto(url, timeout=30000)
+                    response = resp_info.value
+                    body = response.text()
+                finally:
+                    browser.close()
+
+            store_id_match = re.search(r"storeid=(\d+)", response.url)
+            store_id = store_id_match.group(1) if store_id_match else None
+            addr = _lookup_store_address(host, store_id) if store_id else {}
+            name = addr.get("name") or banner
+            address, city, state, zip_ = addr.get("address", ""), addr.get("city", ""), addr.get("state", "TX"), addr.get("zip", "")
+
+            try:
+                data = json.loads(body)
+            except ValueError:
+                print(f"[albertsons:{banner}] response was not JSON")
+                debug_dump(f"{banner.lower().replace(' ', '_')}_pgmsearch_nonjson", body)
+                return StockResult(banner, store_id, name, address, city, state, zip_, "UNKNOWN")
+
+            product_entry = _find_product_entry(data, config.UPC)
+            if product_entry is None:
+                print(f"[albertsons:{banner}] UPC not found in response")
+                debug_dump(f"{banner.lower().replace(' ', '_')}_pgmsearch_no_upc_match", body)
+                return StockResult(banner, store_id, name, address, city, state, zip_, "UNKNOWN")
+
+            status, quantity = _guess_status(product_entry)
+            if status == "UNKNOWN":
+                debug_dump(f"{banner.lower().replace(' ', '_')}_pgmsearch_unrecognized_status", json.dumps(product_entry, indent=2))
+
+            return StockResult(banner, store_id, name, address, city, state, zip_, status, quantity)
+
+        except Exception as exc:  # Playwright timeouts, navigation errors, etc.
+            last_error = exc
+            print(f"[albertsons:{banner}] attempt {attempt} failed: {exc}")
+
+    print(f"[albertsons:{banner}] all {config.ALBERTSONS_MAX_ATTEMPTS} attempts failed: {last_error}")
+    return StockResult(banner, None, banner, "", "", "TX", "", "UNKNOWN")
+
+
+def run() -> list[StockResult]:
+    results = []
+    for banner, host in config.ALBERTSONS_BANNERS:
+        results.append(check_banner(banner, host))
+    return results

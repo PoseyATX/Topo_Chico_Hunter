@@ -2,6 +2,11 @@
 
 UPC = "021136050462"  # Topo Chico Mineral Water, 12-digit UPC
 
+# Target's public frontend API key (same one target.com's own site JS uses to
+# call RedSky -- not a secret, but Target rotates it occasionally). Override
+# with the TARGET_API_KEY env var if this one stops working.
+DEFAULT_TARGET_API_KEY = "9f36aeafbe60771e321a7cc95a78140772ab3e96"
+
 # Albertsons Companies' Texas banners. Albertsons and Safeway don't operate
 # stores in Texas -- Randalls (Houston/Austin/San Antonio) and Tom Thumb
 # (Dallas-Fort Worth) are the company's Texas footprint, both running on the
@@ -10,6 +15,22 @@ ALBERTSONS_BANNERS = [
     ("Randalls", "www.randalls.com"),
     ("Tom Thumb", "www.tomthumb.com"),
 ]
+
+# The "xapiSubscriptionKey" embedded in each banner's own page config --
+# required as the ocp-apim-subscription-key header on /abs/pub/xapi/* calls.
+# Not a secret; it's shipped to every visitor's browser.
+ALBERTSONS_SUBSCRIPTION_KEY = "7bad9afbb87043b28519c4443106db06"
+
+# Best-effort retries for the Albertsons product-search call, which sits
+# behind Incapsula bot-detection that intermittently blocks even a real
+# headless browser (see README's "Known limitations").
+ALBERTSONS_MAX_ATTEMPTS = 3
+
+# General web search for the UPC, independent of any specific retailer's
+# store locator -- catches whatever grocery/retail sites are indexed as
+# carrying this product, anywhere, not just Texas.
+WEB_SEARCH_QUERY = f'"{UPC}" Topo Chico'
+WEB_SEARCH_MAX_RESULTS = 15
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

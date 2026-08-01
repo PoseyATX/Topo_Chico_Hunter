@@ -367,6 +367,27 @@
     border: 1px solid var(--line);
   }
 
+  .mentions-section { margin-top: 24px; }
+  .mentions-section h2 {
+    font-family: "Alfa Slab One", cursive;
+    font-size: 1rem;
+    color: var(--red);
+    margin: 0 0 10px;
+  }
+  .mentions-list { display: flex; flex-direction: column; gap: 10px; }
+  .mention-item {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--blue);
+    border-radius: 6px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+  }
+  .mention-item a { color: var(--blue-strong); font-weight: 600; text-decoration: none; }
+  .mention-item a:hover { text-decoration: underline; }
+  .mention-item .snippet { color: var(--ink-2); font-size: 0.85rem; margin-top: 4px; }
+  .mention-item .host { color: var(--muted); font-size: 0.76rem; margin-top: 4px; }
+
   footer {
     margin-top: 28px;
     padding-top: 18px;
@@ -406,8 +427,9 @@
   <div id="app"></div>
 
   <footer>
-    Randalls and Tom Thumb (Albertsons Companies) only. Target, H-E-B, and Walmart aren't
-    included: none publish a public per-store inventory API to query responsibly.
+    Target (statewide TX) plus Randalls/Tom Thumb (Albertsons Companies, best-effort default store)
+    and a general web search for other mentions. H-E-B and Walmart aren't included: neither
+    publishes a public per-store inventory API to query responsibly.
     <br />
     <a href="https://github.com/PoseyATX/Topo_Chico_Hunter" target="_blank" rel="noopener">Source on GitHub</a>
     · Refreshed daily by GitHub Actions
@@ -439,11 +461,35 @@
     return `${Math.round(hrs / 24)} days ago`;
   }
 
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function renderMentions(mentions) {
+    if (!mentions || mentions.length === 0) return "";
+    return `
+      <div class="mentions-section">
+        <h2>Web Mentions (${mentions.length})</h2>
+        <div class="mentions-list">
+          ${mentions.map(m => {
+            let host = "";
+            try { host = new URL(m.url).hostname.replace(/^www\./, ""); } catch (e) {}
+            return `
+              <div class="mention-item">
+                <a href="${escapeHtml(m.url)}" target="_blank" rel="noopener">${escapeHtml(m.title || m.url)}</a>
+                ${m.snippet ? `<div class="snippet">${escapeHtml(m.snippet)}</div>` : ""}
+                ${host ? `<div class="host">${escapeHtml(host)}</div>` : ""}
+              </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+  }
+
   function renderEmpty() {
     app.innerHTML = `
       <div class="empty-state">
         <h2>No Scrape Has Run Yet</h2>
-        <p>The GitHub Action that checks Randalls and Tom Thumb stores across Texas hasn't produced data.json yet.</p>
+        <p>The GitHub Action that checks Target, Randalls, and Tom Thumb hasn't produced data.json yet.</p>
         <code>python -m scraper.run</code>
       </div>`;
   }
@@ -463,12 +509,15 @@
     ];
 
     const stores = data.stores || [];
+    const mentionsHtml = renderMentions(data.web_mentions || []);
+
     if (stores.length === 0) {
       app.innerHTML = `
         <div class="stat-grid">
           ${tiles.map(t => `<div class="stat-tile ${t.cls}"><div class="n">${t.n}</div><div class="l">${t.l}</div></div>`).join("")}
         </div>
-        <div class="no-results"><h2>No Store Data Yet</h2><p>Check back after the next scheduled scrape.</p></div>`;
+        <div class="no-results"><h2>No Store Data Yet</h2><p>Check back after the next scheduled scrape.</p></div>
+        ${mentionsHtml}`;
       return;
     }
 
@@ -510,7 +559,8 @@
           </thead>
           <tbody id="rows"></tbody>
         </table>
-      </div>`;
+      </div>
+      ${mentionsHtml}`;
 
     const q = document.getElementById("q");
     const retailerFilter = document.getElementById("retailer-filter");
@@ -563,10 +613,6 @@
             <td class="num">${dist}</td>
           </tr>`;
       }).join("");
-    }
-
-    function escapeHtml(str) {
-      return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
     q.addEventListener("input", renderRows);

@@ -3,11 +3,13 @@
   "product_title": "Topo Chico Mineral Water",
   "scraped_at": null,
   "stores": [],
+  "web_mentions": [],
   "summary": {
     "total_stores_checked": 0,
     "in_stock": 0,
     "limited_stock": 0,
     "out_of_stock": 0,
-    "unknown": 0
+    "unknown": 0,
+    "web_mentions_count": 0
   }
 }

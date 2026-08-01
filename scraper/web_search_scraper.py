@@ -15,7 +15,7 @@ Run at a modest rate (once a day), this is a single page load, not a crawl.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -32,6 +32,24 @@ class WebMention:
     snippet: str
 
 
+def _resolve_bing_redirect(href: str) -> str:
+    """Bing wraps organic result links in bing.com/ck/a?...&u=a1<base64url>,
+    even in the live, JS-rendered DOM."""
+    if "bing.com/ck/a" not in href:
+        return href
+    qs = parse_qs(urlparse(href).query)
+    u = qs.get("u", [""])[0]
+    if not u.startswith("a1"):
+        return href
+    b64 = u[2:]
+    b64 += "=" * (-len(b64) % 4)
+    try:
+        import base64
+        return base64.urlsafe_b64decode(b64).decode("utf-8", errors="replace")
+    except Exception:
+        return href
+
+
 def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_SEARCH_MAX_RESULTS) -> list[WebMention]:
     mentions: list[WebMention] = []
     try:
@@ -45,12 +63,16 @@ def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_S
                 items = page.query_selector_all(RESULT_SELECTOR)
                 print(f"[web_search] {len(items)} result items found in rendered DOM")
                 seen = set()
+                raw_hrefs_for_debug = []
                 for item in items:
                     link = item.query_selector("h2 a") or item.query_selector("a")
                     if not link:
                         continue
-                    href = link.get_attribute("href") or ""
+                    raw_href = link.get_attribute("href") or ""
+                    href = _resolve_bing_redirect(raw_href)
                     title = (link.inner_text() or "").strip()
+                    if len(raw_hrefs_for_debug) < 5:
+                        raw_hrefs_for_debug.append((raw_href, href, title))
                     if not href.startswith("http") or any(d in href for d in JUNK_DOMAINS) or not title or href in seen:
                         continue
                     seen.add(href)
@@ -59,6 +81,8 @@ def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_S
                     mentions.append(WebMention(title=title, url=href, snippet=snippet))
                     if len(mentions) >= max_results:
                         break
+                if not mentions and raw_hrefs_for_debug:
+                    print(f"[web_search] first 5 (raw_href, resolved_href, title): {raw_hrefs_for_debug}")
             finally:
                 browser.close()
     except Exception as exc:

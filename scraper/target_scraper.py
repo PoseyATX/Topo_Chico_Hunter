@@ -24,7 +24,15 @@ BASE = "https://redsky.target.com/redsky_aggregations/v1/web"
 API_KEY = os.environ.get("TARGET_API_KEY", config.DEFAULT_TARGET_API_KEY)
 
 session = requests.Session()
-session.headers.update({"User-Agent": config.USER_AGENT, "Accept": "application/json"})
+session.headers.update(
+    {
+        "User-Agent": config.USER_AGENT,
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://www.target.com",
+        "Referer": "https://www.target.com/",
+    }
+)
 
 
 def _get(path: str, params: dict) -> Optional[dict]:
@@ -35,7 +43,7 @@ def _get(path: str, params: dict) -> Optional[dict]:
         print(f"[target] request error on {path}: {exc}")
         return None
     if resp.status_code != 200:
-        print(f"[target] {path} -> HTTP {resp.status_code}")
+        print(f"[target] {path} -> HTTP {resp.status_code}: {resp.text[:300]!r}")
         return None
     try:
         return resp.json()

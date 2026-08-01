@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Topo Chico Hunter — Texas Stock Finder</title>
-<meta name="description" content="Live Target store-stock finder for Topo Chico Mineral Water (UPC 021136050462) across Texas." />
+<meta name="description" content="Live Randalls and Tom Thumb (Albertsons Companies) store-stock finder for Topo Chico Mineral Water (UPC 021136050462) across Texas." />
 <style>
   @font-face {
     font-family: "Alex Brush";
@@ -406,8 +406,8 @@
   <div id="app"></div>
 
   <footer>
-    Target stores only — checked via Target's public product-availability API. H-E-B and Walmart aren't
-    included: neither publishes a public per-store inventory API to query responsibly.
+    Randalls and Tom Thumb (Albertsons Companies) only. Target, H-E-B, and Walmart aren't
+    included: none publish a public per-store inventory API to query responsibly.
     <br />
     <a href="https://github.com/PoseyATX/Topo_Chico_Hunter" target="_blank" rel="noopener">Source on GitHub</a>
     · Refreshed daily by GitHub Actions
@@ -443,7 +443,7 @@
     app.innerHTML = `
       <div class="empty-state">
         <h2>No Scrape Has Run Yet</h2>
-        <p>The GitHub Action that checks Target stores across Texas hasn't produced data.json yet.</p>
+        <p>The GitHub Action that checks Randalls and Tom Thumb stores across Texas hasn't produced data.json yet.</p>
         <code>python -m scraper.run</code>
       </div>`;
   }
@@ -478,6 +478,10 @@
       </div>
       <div class="controls">
         <input type="search" id="q" placeholder="Search city or store…" aria-label="Search city or store" />
+        <select id="retailer-filter" aria-label="Filter by retailer">
+          <option value="">All retailers</option>
+          ${[...new Set(stores.map(r => r.retailer).filter(Boolean))].map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("")}
+        </select>
         <select id="status-filter" aria-label="Filter by status">
           <option value="">All statuses</option>
           <option value="IN_STOCK">In stock</option>
@@ -497,6 +501,7 @@
           <thead>
             <tr>
               <th>Status</th>
+              <th>Retailer</th>
               <th>Store</th>
               <th>City</th>
               <th>ZIP</th>
@@ -508,6 +513,7 @@
       </div>`;
 
     const q = document.getElementById("q");
+    const retailerFilter = document.getElementById("retailer-filter");
     const statusFilter = document.getElementById("status-filter");
     const sortBy = document.getElementById("sort-by");
     const rowsEl = document.getElementById("rows");
@@ -518,8 +524,10 @@
     function renderRows() {
       const term = q.value.trim().toLowerCase();
       const statusVal = statusFilter.value;
+      const retailerVal = retailerFilter.value;
       let filtered = stores.filter(r => {
         if (statusVal && r.status !== statusVal) return false;
+        if (retailerVal && r.retailer !== retailerVal) return false;
         if (!term) return true;
         return (
           (r.city || "").toLowerCase().includes(term) ||
@@ -538,7 +546,7 @@
       resultCount.textContent = `${filtered.length} of ${stores.length} stores`;
 
       if (filtered.length === 0) {
-        rowsEl.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;">No stores match your filters.</td></tr>`;
+        rowsEl.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;">No stores match your filters.</td></tr>`;
         return;
       }
 
@@ -548,7 +556,8 @@
         return `
           <tr>
             <td><span class="chip ${meta.chip}">${meta.label}</span></td>
-            <td><div class="store-name">${escapeHtml(r.name || "Target")}</div><div class="store-addr">${escapeHtml(r.address || "")}</div></td>
+            <td>${escapeHtml(r.retailer || "")}</td>
+            <td><div class="store-name">${escapeHtml(r.name || r.retailer || "Store")}</div><div class="store-addr">${escapeHtml(r.address || "")}</div></td>
             <td>${escapeHtml(r.city || "")}</td>
             <td class="num">${escapeHtml(r.zip || "")}</td>
             <td class="num">${dist}</td>
@@ -561,6 +570,7 @@
     }
 
     q.addEventListener("input", renderRows);
+    retailerFilter.addEventListener("change", renderRows);
     statusFilter.addEventListener("change", renderRows);
     sortBy.addEventListener("change", renderRows);
     renderRows();

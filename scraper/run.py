@@ -1,6 +1,7 @@
 """
-Scrape Target's Texas stores for Topo Chico stock and write docs/data.json,
-which the static site at docs/index.html reads.
+Scrape Randalls and Tom Thumb (Albertsons Companies' Texas banners) for Topo
+Chico stock across Texas and write docs/data.json, which the static site at
+docs/index.html reads.
 
 Usage: python -m scraper.run
 """
@@ -11,54 +12,60 @@ import json
 import time
 from datetime import datetime, timezone
 
-from . import config, target_scraper as target
+from . import albertsons_scraper as albertsons, config
 
 
 def run() -> dict:
-    product = target.find_product_by_upc(config.UPC)
-    if not product:
-        raise SystemExit(f"Could not resolve UPC {config.UPC} to a Target product (TCIN).")
-
-    print(f"[run] found product: {product.title} (tcin={product.tcin})")
-
-    stores_by_id: dict[str, target.Store] = {}
-    for city, zip_code in config.TEXAS_SEARCH_POINTS:
-        found = target.nearby_stores(zip_code)
-        print(f"[run] {city} ({zip_code}): {len(found)} stores within {config.SEARCH_RADIUS_MILES}mi")
-        for store in found:
-            if store.state == "TX" or store.state == "":
-                stores_by_id.setdefault(store.store_id, store)
-        time.sleep(config.REQUEST_DELAY_SECONDS)
-
-    stores = list(stores_by_id.values())
-    print(f"[run] {len(stores)} unique Texas stores to check")
-
-    stock_results = target.fulfillment_for_stores(product.tcin, stores)
-
     rows = []
-    for result in stock_results:
-        s = result.store
-        rows.append(
-            {
-                "retailer": "Target",
-                "store_id": s.store_id,
-                "name": s.name,
-                "address": s.address,
-                "city": s.city,
-                "state": s.state,
-                "zip": s.zip,
-                "distance_from_search_point": s.distance_miles,
-                "status": result.status,
-                "quantity": result.quantity,
-            }
-        )
+    product_titles = []
 
-    rows.sort(key=lambda r: (r["city"], r["name"]))
+    for banner, host in config.ALBERTSONS_BANNERS:
+        product = albertsons.find_product_by_upc(host, config.UPC)
+        if not product:
+            print(f"[run] {banner}: could not resolve UPC {config.UPC} -- skipping banner")
+            continue
+        product_titles.append(product.title)
+        print(f"[run] {banner}: found product {product.title} (id={product.product_id})")
+
+        stores_by_id: dict[str, albertsons.Store] = {}
+        for city, zip_code in config.TEXAS_SEARCH_POINTS:
+            found = albertsons.nearby_stores(host, banner, zip_code)
+            if found:
+                print(f"[run] {banner} near {city} ({zip_code}): {len(found)} stores within {config.SEARCH_RADIUS_MILES}mi")
+            for store in found:
+                if store.state in ("TX", ""):
+                    stores_by_id.setdefault(store.store_id, store)
+            time.sleep(config.REQUEST_DELAY_SECONDS)
+
+        stores = list(stores_by_id.values())
+        print(f"[run] {banner}: {len(stores)} unique Texas stores to check")
+
+        stock_results = albertsons.fulfillment_for_stores(host, product.product_id, stores)
+        for result in stock_results:
+            s = result.store
+            rows.append(
+                {
+                    "retailer": banner,
+                    "store_id": s.store_id,
+                    "name": s.name,
+                    "address": s.address,
+                    "city": s.city,
+                    "state": s.state,
+                    "zip": s.zip,
+                    "distance_from_search_point": s.distance_miles,
+                    "status": result.status,
+                    "quantity": result.quantity,
+                }
+            )
+
+    if not rows:
+        raise SystemExit(f"Could not find any Randalls/Tom Thumb stock data for UPC {config.UPC}.")
+
+    rows.sort(key=lambda r: (r["retailer"], r["city"], r["name"]))
 
     output = {
         "upc": config.UPC,
-        "product_title": product.title,
-        "product_image_url": product.image_url,
+        "product_title": product_titles[0] if product_titles else "Topo Chico Mineral Water",
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "stores": rows,
         "summary": {

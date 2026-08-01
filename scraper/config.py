@@ -2,10 +2,14 @@
 
 UPC = "021136050462"  # Topo Chico Mineral Water, 12-digit UPC
 
-# Target's public frontend API key (same one target.com's own site JS uses to
-# call RedSky — not a secret, but Target rotates it occasionally). Override
-# with the TARGET_API_KEY env var if this one stops working.
-DEFAULT_TARGET_API_KEY = "9f36aeafbe60771e321a7cc95a78140772ab3e96"
+# Albertsons Companies' Texas banners. Albertsons and Safeway don't operate
+# stores in Texas -- Randalls (Houston/Austin/San Antonio) and Tom Thumb
+# (Dallas-Fort Worth) are the company's Texas footprint, both running on the
+# same underlying digital platform as the rest of the Albertsons family.
+ALBERTSONS_BANNERS = [
+    ("Randalls", "www.randalls.com"),
+    ("Tom Thumb", "www.tomthumb.com"),
+]
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

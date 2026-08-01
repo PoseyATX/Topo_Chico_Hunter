@@ -1,10 +1,12 @@
 name: Scrape Topo Chico stock
 
-# No `schedule:` trigger: Target's Akamai bot-detection CAPTCHAs requests from
-# GitHub's shared (datacenter-IP) runners -- see README's "Known limitation"
-# section. Re-add a `schedule:` block once `runs-on:` below points at a
-# self-hosted runner on a residential connection; until then this only runs
-# on demand ("Run workflow") or when the scraper code changes.
+# No `schedule:` trigger yet: the Randalls/Tom Thumb endpoints in
+# scraper/albertsons_scraper.py are first-pass guesses, not yet confirmed
+# against live traffic -- see README's "Status" section. Add a `schedule:`
+# block back once a manual "Run workflow" succeeds reliably (and point
+# `runs-on:` below at a self-hosted runner if these banners turn out to CAPTCHA
+# datacenter IPs the way Target does). Until then this only runs on demand or
+# when the scraper code changes.
 on:
   workflow_dispatch: {}
   push:

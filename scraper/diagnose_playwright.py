@@ -1,8 +1,9 @@
 """
 One-off reconnaissance tool #2: loads Randalls/Tom Thumb pages in real headless
-Chromium and logs every XHR/fetch request the page makes, so the real
-product-search and availability API calls (issued by client-side JS after
-load, invisible in the raw HTML `diagnose.py` scans) can be observed directly.
+Chromium and logs every XHR/fetch request the page makes, plus the full
+response body for the product-search and store-resolver calls specifically,
+so albertsons_scraper.py's endpoints and JSON parsing can be corrected against
+real traffic (invisible from a plain requests-based fetch of the raw HTML).
 
 Usage: python -m scraper.diagnose_playwright
 Requires `playwright install chromium` first. Run via the "Diagnose Albertsons
@@ -16,6 +17,7 @@ from playwright.sync_api import sync_playwright
 from . import config
 
 STATIC_EXT = (".css", ".js", ".png", ".jpg", ".jpeg", ".svg", ".woff", ".woff2", ".ico", ".gif", ".webp")
+BODY_OF_INTEREST = ("pgmsearch", "storeresolver")
 
 PAGES = [
     ("home", "/"),
@@ -40,7 +42,26 @@ def scan(host: str) -> None:
                 return
             seen.append((request.method, url))
 
+        def on_response(response):
+            url = response.url
+            if not any(k in url for k in BODY_OF_INTEREST):
+                return
+            try:
+                headers = response.request.headers
+                interesting_headers = {
+                    k: v for k, v in headers.items() if "key" in k.lower() or "subscription" in k.lower() or "auth" in k.lower()
+                }
+                body = response.text()
+            except Exception as exc:
+                print(f"\n--- response body for {url} ---\n  (could not read: {exc})")
+                return
+            print(f"\n--- response for {url} ---")
+            print(f"  status: {response.status}")
+            print(f"  request headers of interest: {interesting_headers}")
+            print(f"  body[:4000]: {body[:4000]}")
+
         page.on("request", on_request)
+        page.on("response", on_response)
 
         for label, path in PAGES:
             url = f"https://{host}{path}"
@@ -49,11 +70,9 @@ def scan(host: str) -> None:
                 page.goto(url, wait_until="networkidle", timeout=30000)
             except Exception as exc:
                 print(f"   navigation issue (continuing anyway): {exc}")
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(4000)
 
-        print(f"\n{len(seen)} non-static requests captured:")
-        for method, url in seen:
-            print(f"  {method} {url}")
+        print(f"\n{len(seen)} non-static requests captured (see above for full bodies of pgmsearch/storeresolver calls).")
 
         browser.close()
 

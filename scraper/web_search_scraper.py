@@ -58,9 +58,11 @@ def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_S
         print(f"[web_search] request error: {exc}")
         return []
 
-    if resp.status_code != 200:
-        print(f"[web_search] HTTP {resp.status_code}")
+    if resp.status_code >= 400 or not resp.text:
+        print(f"[web_search] HTTP {resp.status_code}, empty or error body")
         return []
+    if resp.status_code != 200:
+        print(f"[web_search] HTTP {resp.status_code} (non-200 but has a body, trying to parse anyway)")
 
     soup = BeautifulSoup(resp.text, "html.parser")
     mentions: list[WebMention] = []
@@ -78,5 +80,6 @@ def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_S
 
     if not mentions:
         print("[web_search] no results parsed -- DDG's result markup may have changed")
+        print(f"[web_search] body[:1000]: {resp.text[:1000]!r}")
 
     return mentions

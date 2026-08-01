@@ -93,13 +93,29 @@ def _attempt(query: str, max_results: int) -> list[WebMention]:
     return mentions
 
 
+def _is_relevant(mentions: list[WebMention]) -> bool:
+    """Sanity check against decoy/misdirected content: confirmed via a real
+    run that Bing can serve a plausible-looking but completely unrelated
+    results page (a "Baby Boomers" listicle carousel, styled with the same
+    b_algo markup) to this kind of request -- silently wrong, not an
+    obvious failure. Require at least one result to actually mention the
+    product or its UPC before trusting the batch."""
+    needles = ("topo chico", config.UPC)
+    return any(
+        any(n in f"{m.title} {m.snippet} {m.url}".lower() for n in needles)
+        for m in mentions
+    )
+
+
 def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_SEARCH_MAX_RESULTS) -> list[WebMention]:
     for attempt in range(1, MAX_ATTEMPTS + 1):
         print(f"[web_search] attempt {attempt}/{MAX_ATTEMPTS}")
         try:
             mentions = _attempt(query, max_results)
-            if mentions:
+            if mentions and _is_relevant(mentions):
                 return mentions
+            if mentions:
+                print(f"[web_search] attempt {attempt} got {len(mentions)} results but none mention Topo Chico/the UPC -- discarding as likely decoy/misdirected content")
         except Exception as exc:
             print(f"[web_search] attempt {attempt} failed: {exc}")
     print(f"[web_search] all {MAX_ATTEMPTS} attempts found nothing")

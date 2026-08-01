@@ -65,6 +65,13 @@ elements in the rendered page; the next, for the identical query, found 0),
 so it retries up to 3 times. Expect this source to legitimately come back
 empty some days. It surfaces whatever's indexed, not confirmed live stock.
 
+Worse, one run returned 10 confident-looking results -- real titles, real
+snippets, real URLs -- for a completely unrelated topic ("Baby Boomers"
+listicles), styled with the same result markup as genuine hits. Silently
+wrong is worse than empty, so `search()` now requires at least one result to
+actually mention "Topo Chico" or the UPC before accepting a batch; otherwise
+it's discarded and retried like any other failed attempt.
+
 **Not included:** H-E-B (Texas's dominant grocery chain for Topo Chico) and
 Walmart have no public inventory API; scraping their live stock pages would
 mean reverse-engineering an internal ordering session, which is fragile and

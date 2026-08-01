@@ -3,12 +3,13 @@ General web search for the UPC, independent of any specific retailer's store
 locator -- catches whatever grocery/retail/wholesale pages are indexed as
 carrying this product anywhere, not just a fixed list of Texas chains.
 
-Uses DuckDuckGo's "Lite" endpoint (lite.duckduckgo.com/lite/), a plain
-table-based HTML results page with no JavaScript -- built for exactly this
-kind of low-bandwidth/scriptable client, unlike html.duckduckgo.com/html/,
-which (confirmed via a real run) serves a JS-bootstrap shell instead of
-server-rendered results to this kind of request. Run at a modest rate (once
-a day), this is a single request, not a crawl.
+Tries DuckDuckGo's "Lite" endpoint first, falling back to Bing's plain HTML
+results page. Confirmed via real runs: DuckDuckGo now serves the *same*
+JS-bootstrap anti-bot shell to both html.duckduckgo.com/html/ and
+lite.duckduckgo.com/lite/ for this kind of request -- there's no simple
+no-JS DDG endpoint left to scrape. Bing's basic HTML search
+(`b_algo` result markup) has historically been more tolerant of this. Run at
+a modest rate (once a day), this is one or two requests, not a crawl.
 """
 
 from __future__ import annotations
@@ -21,14 +22,32 @@ from bs4 import BeautifulSoup
 
 from . import config
 
-SEARCH_URL = "https://lite.duckduckgo.com/lite/"
-
 
 @dataclass
 class WebMention:
     title: str
     url: str
     snippet: str
+
+
+def _get(url: str, params: dict) -> str:
+    try:
+        resp = requests.get(
+            url,
+            params=params,
+            headers={
+                "User-Agent": config.USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml",
+            },
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        print(f"[web_search] {url} request error: {exc}")
+        return ""
+    if resp.status_code >= 400 or not resp.text:
+        print(f"[web_search] {url} -> HTTP {resp.status_code}, empty or error body")
+        return ""
+    return resp.text
 
 
 def _resolve_ddg_redirect(href: str) -> str:
@@ -41,38 +60,17 @@ def _resolve_ddg_redirect(href: str) -> str:
     return href
 
 
-def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_SEARCH_MAX_RESULTS) -> list[WebMention]:
-    try:
-        resp = requests.get(
-            SEARCH_URL,
-            params={"q": query},
-            headers={
-                "User-Agent": config.USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml",
-            },
-            timeout=20,
-        )
-    except requests.RequestException as exc:
-        print(f"[web_search] request error: {exc}")
+def _search_ddg_lite(query: str, max_results: int) -> list[WebMention]:
+    body = _get("https://lite.duckduckgo.com/lite/", {"q": query})
+    if not body:
         return []
 
-    if resp.status_code >= 400 or not resp.text:
-        print(f"[web_search] HTTP {resp.status_code}, empty or error body")
-        return []
-    if resp.status_code != 200:
-        print(f"[web_search] HTTP {resp.status_code} (non-200 but has a body, trying to parse anyway)")
-
-    soup = BeautifulSoup(resp.text, "html.parser")
+    soup = BeautifulSoup(body, "html.parser")
     mentions: list[WebMention] = []
-
-    # Lite's markup: each result is a <tr> with a link (class result-link,
-    # older markup) followed by a snippet <tr> (class result-snippet).
-    # Fall back to any <a> whose href looks like an external result link, in
-    # case the exact class names have drifted.
     links = soup.select("a.result-link") or [
         a for a in soup.find_all("a", href=True)
-        if a["href"].startswith("http") or "/l/?" in a["href"]
-        if "duckduckgo.com" not in _resolve_ddg_redirect(a["href"])
+        if (a["href"].startswith("http") or "/l/?" in a["href"])
+        and "duckduckgo.com" not in _resolve_ddg_redirect(a["href"])
     ]
 
     for link in links:
@@ -95,8 +93,46 @@ def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_S
             break
 
     if not mentions:
-        print("[web_search] no results parsed -- DDG's result markup may have changed")
-        print(f"[web_search] body length: {len(resp.text)}")
-        print(f"[web_search] body[:1500]: {resp.text[:1500]!r}")
+        print("[web_search] DDG lite: no results parsed")
+        print(f"[web_search] DDG lite body length: {len(body)}")
+        print(f"[web_search] DDG lite body[:800]: {body[:800]!r}")
 
     return mentions
+
+
+def _search_bing(query: str, max_results: int) -> list[WebMention]:
+    body = _get("https://www.bing.com/search", {"q": query, "count": max_results})
+    if not body:
+        return []
+
+    soup = BeautifulSoup(body, "html.parser")
+    mentions: list[WebMention] = []
+    for result in soup.select("li.b_algo"):
+        link = result.select_one("h2 a") or result.select_one("a")
+        if not link or not link.get("href", "").startswith("http"):
+            continue
+        snippet_el = result.select_one(".b_caption p") or result.select_one("p")
+        mentions.append(
+            WebMention(
+                title=link.get_text(strip=True),
+                url=link["href"],
+                snippet=snippet_el.get_text(strip=True) if snippet_el else "",
+            )
+        )
+        if len(mentions) >= max_results:
+            break
+
+    if not mentions:
+        print("[web_search] Bing: no results parsed")
+        print(f"[web_search] Bing body length: {len(body)}")
+        print(f"[web_search] Bing body[:800]: {body[:800]!r}")
+
+    return mentions
+
+
+def search(query: str = config.WEB_SEARCH_QUERY, max_results: int = config.WEB_SEARCH_MAX_RESULTS) -> list[WebMention]:
+    mentions = _search_ddg_lite(query, max_results)
+    if mentions:
+        return mentions
+    print("[web_search] DDG lite returned nothing, trying Bing")
+    return _search_bing(query, max_results)

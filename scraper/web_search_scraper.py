@@ -100,25 +100,45 @@ def _search_ddg_lite(query: str, max_results: int) -> list[WebMention]:
     return mentions
 
 
+BING_JUNK_DOMAINS = (
+    "bing.com", "microsoft.com", "microsofttranslator.com", "msn.com", "live.com",
+)
+
+
 def _search_bing(query: str, max_results: int) -> list[WebMention]:
     body = _get("https://www.bing.com/search", {"q": query, "count": max_results})
     if not body:
         return []
 
     soup = BeautifulSoup(body, "html.parser")
+
+    # Prefer the known results-list container (#b_results) if present, since
+    # that scopes out the sidebar/related-searches/ad clutter; fall back to
+    # the whole page if Bing's markup has dropped that id.
+    container = soup.select_one("#b_results") or soup
+
     mentions: list[WebMention] = []
-    for result in soup.select("li.b_algo"):
-        link = result.select_one("h2 a") or result.select_one("a")
-        if not link or not link.get("href", "").startswith("http"):
+    seen_urls = set()
+    for li in container.find_all("li", recursive=True) or [container]:
+        link = li.find("a", href=True)
+        if not link:
             continue
-        snippet_el = result.select_one(".b_caption p") or result.select_one("p")
-        mentions.append(
-            WebMention(
-                title=link.get_text(strip=True),
-                url=link["href"],
-                snippet=snippet_el.get_text(strip=True) if snippet_el else "",
-            )
-        )
+        href = link["href"]
+        if not href.startswith("http") or any(d in href for d in BING_JUNK_DOMAINS):
+            continue
+        title = link.get_text(strip=True)
+        if not title or href in seen_urls:
+            continue
+        seen_urls.add(href)
+        # The caption/snippet is usually the first substantial <p> or <div>
+        # text within the same <li>, after the title link itself.
+        snippet = ""
+        for el in li.find_all(["p", "div"]):
+            text = el.get_text(strip=True)
+            if len(text) > 20 and text != title:
+                snippet = text
+                break
+        mentions.append(WebMention(title=title, url=href, snippet=snippet))
         if len(mentions) >= max_results:
             break
 

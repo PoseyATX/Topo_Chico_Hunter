@@ -77,14 +77,12 @@ If parsing breaks, failed responses (URL, status, headers, body) are dumped to
 `debug/*.json` for inspection — check there first, and correct the endpoint
 paths/field names in `scraper/albertsons_scraper.py` to match.
 
-## Enabling the live site (one-time)
+## Live site
 
-1. Repo **Settings → Pages**
-2. Source: **Deploy from a branch**
-3. Branch: **main**, folder: **/docs**
-4. Save. The site will be live at `https://poseyatx.github.io/Topo_Chico_Hunter/`
-   within a minute or two, and refreshes automatically every day from the scheduled
-   Action (once the endpoints above are confirmed working).
+GitHub Pages is enabled with source **GitHub Actions** (Settings → Pages).
+`.github/workflows/pages.yml` publishes `docs/` on every push that touches it,
+so the dashboard is live at `https://poseyatx.github.io/Topo_Chico_Hunter/`
+with no manual redeploy step.
 
 ## Notes on scope and etiquette
 
